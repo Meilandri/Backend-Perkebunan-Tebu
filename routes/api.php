@@ -29,5 +29,5 @@ Route::middleware('auth:sanctum')->group(function () {
     // Manajemen Laporan
     Route::get('/laporan', [LaporanController::class, 'index']);
     Route::get('/laporan/{id}', [LaporanController::class, 'show']);
-    Route::patch('/laporan/{id}/status', [LaporanController::class, 'updateStatus']);
+    Route::patch('/laporan/{id}/status', [LaporanController::class, 'updateStatus'])->middleware('role:Manajemen');
 });

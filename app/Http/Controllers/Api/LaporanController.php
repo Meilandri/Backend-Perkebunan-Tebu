@@ -70,7 +70,7 @@ class LaporanController extends Controller
             'max_lng' => 'nullable|numeric',
         ]);
 
-        $query = Laporan::select('id_laporan', 'jenis_kejadian', 'latitude', 'longitude', 'status_penanganan', 'waktu_lapor', 'foto_bukti', 'keterangan_tambahan');
+        $query = Laporan::select('id_laporan', 'jenis_kejadian', 'wilayah', 'latitude', 'longitude', 'status_penanganan', 'waktu_lapor', 'foto_bukti', 'keterangan_tambahan');
 
         // Bounding Box Filter jika parameter viewport diberikan oleh Leaflet/React
         if ($request->filled(['min_lat', 'max_lat', 'min_lng', 'max_lng'])) {
@@ -105,6 +105,7 @@ class LaporanController extends Controller
     {
         $request->validate([
             'jenis_kejadian' => ['required', Rule::in(['Kebakaran tebu', 'Serangan hama', 'Penyakit tanaman', 'Banjir/genangan', 'Kendala lainnya'])],
+            'wilayah' => 'nullable|string|max:255',
             'latitude' => 'required|numeric',
             'longitude' => 'required|numeric',
             'foto_bukti' => 'required|image|mimes:jpeg,png,jpg,webp|max:5120', // maks 5MB
@@ -120,6 +121,7 @@ class LaporanController extends Controller
         $laporan = Laporan::create([
             'id_pelapor' => $user ? $user->id : null,
             'jenis_kejadian' => $request->jenis_kejadian,
+            'wilayah' => $request->wilayah,
             'latitude' => $request->latitude,
             'longitude' => $request->longitude,
             'foto_bukti' => $fotoUrl,
@@ -152,6 +154,11 @@ class LaporanController extends Controller
      */
     public function updateStatus(Request $request, $id)
     {
+        // Tambahan Pengecekan Otorisasi secara implisit di controller (Middleware juga sudah aktif)
+        if ($request->user() && $request->user()->peran_user !== 'Manajemen') {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
         $request->validate([
             'status_penanganan' => ['required', Rule::in(['Open', 'On-Progress', 'Closed'])],
             'catatan_tindak_lanjut' => 'nullable|string',
@@ -161,7 +168,7 @@ class LaporanController extends Controller
         $laporan->status_penanganan = $request->status_penanganan;
         
         if ($request->filled('catatan_tindak_lanjut')) {
-            $laporan->keterangan_tambahan .= "\n[Catatan Tindak Lanjut]: " . $request->catatan_tindak_lanjut;
+            $laporan->catatan_tindak_lanjut = $request->catatan_tindak_lanjut;
         }
 
         $laporan->save();

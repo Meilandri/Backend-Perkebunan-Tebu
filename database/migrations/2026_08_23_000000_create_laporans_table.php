@@ -21,10 +21,12 @@ return new class extends Migration
                 'Banjir/genangan',
                 'Kendala lainnya'
             ]);
+            $table->string('wilayah')->nullable();
             $table->decimal('latitude', 10, 8);
             $table->decimal('longitude', 11, 8);
             $table->string('foto_bukti');
             $table->text('keterangan_tambahan')->nullable();
+            $table->text('catatan_tindak_lanjut')->nullable();
             $table->enum('status_penanganan', ['Open', 'On-Progress', 'Closed'])->default('Open');
             $table->timestamp('waktu_lapor')->useCurrent();
             $table->timestamps();

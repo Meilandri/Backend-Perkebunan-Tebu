@@ -15,10 +15,12 @@ class Laporan extends Model
     protected $fillable = [
         'id_pelapor',
         'jenis_kejadian',
+        'wilayah',
         'latitude',
         'longitude',
         'foto_bukti',
         'keterangan_tambahan',
+        'catatan_tindak_lanjut',
         'status_penanganan',
         'waktu_lapor',
     ];
