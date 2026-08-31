@@ -30,4 +30,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/laporan', [LaporanController::class, 'index']);
     Route::get('/laporan/{id}', [LaporanController::class, 'show']);
     Route::patch('/laporan/{id}/status', [LaporanController::class, 'updateStatus'])->middleware('role:Manajemen');
+
+    // Manajemen Sektor & Kategori (Hanya Manajemen)
+    Route::apiResource('sektors', \App\Http\Controllers\Api\SektorController::class)->except(['show'])->middleware('role:Manajemen');
+    Route::apiResource('kategoris', \App\Http\Controllers\Api\KategoriController::class)->only(['index', 'store', 'destroy'])->middleware('role:Manajemen');
 });

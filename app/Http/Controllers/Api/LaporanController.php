@@ -18,6 +18,17 @@ class LaporanController extends Controller
     {
         $query = Laporan::with('pelapor');
 
+        // Global Search
+        if ($request->has('keyword') && !empty($request->keyword)) {
+            $keyword = $request->keyword;
+            $query->where(function ($q) use ($keyword) {
+                $q->where('id_laporan', 'like', "%{$keyword}%")
+                  ->orWhere('wilayah', 'like', "%{$keyword}%")
+                  ->orWhere('keterangan_tambahan', 'like', "%{$keyword}%")
+                  ->orWhere('jenis_kejadian', 'like', "%{$keyword}%");
+            });
+        }
+
         // Filter Jenis Kejadian
         if ($request->has('jenis_kejadian') && !empty($request->jenis_kejadian)) {
             $jenis = is_array($request->jenis_kejadian) ? $request->jenis_kejadian : explode(',', $request->jenis_kejadian);
@@ -104,7 +115,7 @@ class LaporanController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'jenis_kejadian' => ['required', Rule::in(['Kebakaran tebu', 'Serangan hama', 'Penyakit tanaman', 'Banjir/genangan', 'Kendala lainnya'])],
+            'jenis_kejadian' => ['required', 'string', 'exists:kategori_kejadians,nama_kategori'],
             'wilayah' => 'nullable|string|max:255',
             'latitude' => 'required|numeric',
             'longitude' => 'required|numeric',
