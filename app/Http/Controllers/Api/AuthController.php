@@ -61,14 +61,42 @@ class AuthController extends Controller
 
     public function guestLogin(Request $request)
     {
-        // Login / Akses Mode Tamu (Guest) sesuai spesifikasi PDF
-        $guestUser = User::create([
-            'name' => 'Tamu (Guest ' . rand(1000, 9999) . ')',
-            'email' => null,
-            'password' => null,
-            'peran_user' => 'Petugas Lapangan',
-            'is_guest' => true,
+        $request->validate([
+            'name' => 'nullable|string|max:255',
+            'email' => 'nullable|email|max:255',
         ]);
+
+        if ($request->filled('email')) {
+            // Dipanggil dari alur Google Login (frontend mengirim nama &
+            // email asli dari profil Google). Pakai firstOrNew berdasarkan
+            // email, BUKAN selalu User::create, supaya:
+            // 1. Login berulang dari akun Google yang sama tidak melanggar
+            //    constraint unique('email') di tabel users.
+            // 2. Laporan yang pernah dikirim user ini sebelumnya tetap
+            //    tercatat di bawah nama yang sama secara konsisten,
+            //    bukan berpindah-pindah ke akun tamu baru setiap login.
+            // SEBELUMNYA method ini mengabaikan $request sepenuhnya dan
+            // selalu membuat akun tamu baru dengan nama random
+            // "Tamu (Guest ####)" -- itulah sebabnya nama di halaman
+            // Detail Laporan tidak pernah cocok dengan nama Google yang
+            // tampil di dashboard.
+            $guestUser = User::firstOrNew(['email' => $request->email]);
+            $guestUser->name = $request->name ?: ($guestUser->name ?: 'Petani (Google)');
+            $guestUser->peran_user = $guestUser->peran_user ?: 'Petugas Lapangan';
+            $guestUser->is_guest = true;
+            $guestUser->save();
+        } else {
+            // Akses Tamu murni tanpa profil (tombol "Akses Tamu" di Login)
+            // -- perilaku lama tetap dipertahankan: akun tamu anonim baru
+            // setiap kali.
+            $guestUser = User::create([
+                'name' => 'Tamu (Guest ' . rand(1000, 9999) . ')',
+                'email' => null,
+                'password' => null,
+                'peran_user' => 'Petugas Lapangan',
+                'is_guest' => true,
+            ]);
+        }
 
         Auth::login($guestUser);
 

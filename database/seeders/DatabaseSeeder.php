@@ -21,5 +21,14 @@ class DatabaseSeeder extends Seeder
             'name' => 'Test User',
             'email' => 'test@example.com',
         ]);
+<<<<<<< HEAD
     }
 }
+=======
+
+        $this->call([
+            KategoriKejadianSeeder::class,
+        ]);
+    }
+}
+>>>>>>> e3feee9 (terbaru)
