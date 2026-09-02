@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\LaporanController;
 use App\Http\Controllers\Api\SektorController;
 use App\Http\Controllers\Api\KategoriController;
+use App\Http\Controllers\Api\TimPetugasController;
 
 /*
 |--------------------------------------------------------------------------
@@ -26,6 +27,9 @@ Route::get('/laporan/summary', [LaporanController::class, 'summaryMetrics']); //
 // Public Referensi (dibutuhkan Petani/Guest untuk mengisi dropdown form laporan)
 Route::get('/sektors', [SektorController::class, 'index']);
 Route::get('/kategoris', [KategoriController::class, 'index']);
+
+// Tim Petugas CRUD
+Route::apiResource('tim-petugas', TimPetugasController::class);
 
 // Protected Routes (Butuh autentikasi Sanctum / Session)
 Route::middleware('auth:sanctum')->group(function () {
