@@ -28,7 +28,7 @@ return [
     // semuanya ikut diizinkan, tambahkan pola di allowed_origins_patterns
     // di bawah (contoh sudah disiapkan, tinggal uncomment & sesuaikan).
     'allowed_origins' => array_filter([
-        env('FRONTEND_URL'),
+        'https://agrowatch-seven.vercel.app',
         'http://localhost:5173',
         'http://127.0.0.1:5173',
     ]),
