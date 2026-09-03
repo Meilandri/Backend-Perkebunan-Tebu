@@ -15,13 +15,27 @@ return [
     |
     */
 
+    // "sanctum/csrf-cookie" & "login"/"logout" tanpa prefix sudah tidak
+    // dipakai lagi sejak pindah ke Bearer token auth (lihat AuthController),
+    // tapi dibiarkan di sini karena tidak mengganggu apa pun.
     'paths' => ['api/*', 'sanctum/csrf-cookie', 'login', 'logout'],
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => [env('FRONTEND_URL', 'https://agrowatch-seven.vercel.app/'), '', 'http://127.0.0.1:5173'],
+    // FRONTEND_URL diisi persis dengan domain Vercel kamu, TANPA trailing
+    // slash, misal: https://agrowatch.vercel.app
+    // Kalau Vercel bikin banyak preview URL (per-branch/PR) dan kamu mau
+    // semuanya ikut diizinkan, tambahkan pola di allowed_origins_patterns
+    // di bawah (contoh sudah disiapkan, tinggal uncomment & sesuaikan).
+    'allowed_origins' => array_filter([
+        env('FRONTEND_URL'),
+        'http://localhost:5173',
+        'http://127.0.0.1:5173',
+    ]),
 
-    'allowed_origins_patterns' => [],
+    'allowed_origins_patterns' => [
+        // '#^https://.*\.vercel\.app$#',
+    ],
 
     'allowed_headers' => ['*'],
 
@@ -29,6 +43,9 @@ return [
 
     'max_age' => 0,
 
-    'supports_credentials' => true,
+    // Sudah tidak pakai cookie/session (lihat AuthController) -- auth
+    // sepenuhnya lewat header Authorization: Bearer, jadi credentials
+    // (cookie) tidak perlu diizinkan lagi.
+    'supports_credentials' => false,
 
 ];
