@@ -24,9 +24,13 @@ class RiwayatAktivitas extends Model
     {
         $currentUser = $user ?? Auth::user() ?? request()->user('sanctum');
 
+        // SEBELUMNYA di sini pakai $currentUser->nama_user -- tapi kolom
+        // itu tidak ada di model User (lihat User.php, kolomnya "name").
+        // Akibatnya nama_user yang tersimpan di setiap baris riwayat selalu
+        // null, walau user-nya jelas login. Diganti ke $currentUser->name.
         self::create([
             'user_id' => $currentUser ? $currentUser->id : null,
-            'nama_user' => $currentUser ? $currentUser->nama_user : 'Sistem / Guest',
+            'nama_user' => $currentUser ? $currentUser->name : 'Sistem / Guest',
             'role' => $currentUser ? $currentUser->peran_user : 'System',
             'aksi' => $aksi,
             'deskripsi' => $deskripsi,

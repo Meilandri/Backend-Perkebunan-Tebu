@@ -31,7 +31,14 @@ Route::get('/sektors', [SektorController::class, 'index']);
 Route::get('/sektor', [SektorController::class, 'index']); // Alias
 Route::get('/kategoris', [KategoriController::class, 'index']);
 Route::get('/kategori', [KategoriController::class, 'index']); // Alias
-Route::get('/riwayat', [RiwayatController::class, 'index']); // Public access to riwayat
+
+// Riwayat -- dibuat publik (bukan cuma index, store juga) supaya aksi yang
+// bisa dilakukan tanpa login (mis. petani submit laporan sebagai guest
+// murni tanpa token) tetap bisa tercatat di riwayat aktivitas. SEBELUMNYA
+// store() ada di dalam grup auth:sanctum, jadi aksi dari guest tanpa token
+// gagal tercatat secara permanen ke backend.
+Route::get('/riwayat', [RiwayatController::class, 'index']);
+Route::post('/riwayat', [RiwayatController::class, 'store']);
 
 // Tim Petugas CRUD
 Route::apiResource('tim-petugas', TimPetugasController::class);
@@ -53,7 +60,4 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::apiResource('sektor', SektorController::class)->except(['show', 'index'])->middleware('role:Manajemen'); // Alias
     Route::apiResource('kategoris', KategoriController::class)->only(['store', 'update', 'destroy'])->middleware('role:Manajemen');
     Route::apiResource('kategori', KategoriController::class)->only(['store', 'update', 'destroy'])->middleware('role:Manajemen'); // Alias
-    
-    // Riwayat
-    Route::post('/riwayat', [RiwayatController::class, 'store']);
 });
