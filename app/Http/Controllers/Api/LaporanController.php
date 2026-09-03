@@ -133,13 +133,24 @@ class LaporanController extends Controller
             'area_type' => 'nullable|in:persegi,lingkaran',
             'area_dimension_1' => 'nullable|numeric|min:0',
             'area_dimension_2' => 'nullable|numeric|min:0',
-            'foto_bukti' => 'required|image|mimes:jpeg,png,jpg,webp|max:5120', // maks 5MB
             'keterangan_tambahan' => 'nullable|string',
             'waktu_lapor' => 'nullable|date',
         ]);
 
-        $path = $request->file('foto_bukti')->store('laporans', 'public');
-        $fotoUrl = asset('storage/' . $path);
+        $fotoUrls = [];
+        if ($request->hasFile('foto_bukti')) {
+            $files = is_array($request->file('foto_bukti')) ? $request->file('foto_bukti') : [$request->file('foto_bukti')];
+            foreach ($files as $file) {
+                $path = $file->store('laporans', 'public');
+                $fotoUrls[] = asset('storage/' . $path);
+            }
+        } elseif ($request->hasFile('foto')) { // fallback just in case
+            $files = is_array($request->file('foto')) ? $request->file('foto') : [$request->file('foto')];
+            foreach ($files as $file) {
+                $path = $file->store('laporans', 'public');
+                $fotoUrls[] = asset('storage/' . $path);
+            }
+        }
 
         $user = $request->user();
 
@@ -155,7 +166,7 @@ class LaporanController extends Controller
             'area_type' => $request->location_type === 'area' ? $request->area_type : null,
             'area_dimension_1' => $request->location_type === 'area' ? $request->area_dimension_1 : null,
             'area_dimension_2' => $request->location_type === 'area' ? $request->area_dimension_2 : null,
-            'foto_bukti' => $fotoUrl,
+            'foto_bukti' => $fotoUrls,
             'keterangan_tambahan' => $request->keterangan_tambahan,
             'status_penanganan' => 'Open',
             'waktu_lapor' => $request->waktu_lapor ?? now(),
@@ -192,7 +203,6 @@ class LaporanController extends Controller
      */
     public function updateStatus(Request $request, $id)
     {
-        // Tambahan Pengecekan Otorisasi secara implisit di controller (Middleware juga sudah aktif)
         if ($request->user() && $request->user()->peran_user !== 'Manajemen') {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
@@ -210,10 +220,6 @@ class LaporanController extends Controller
         if ($request->filled('catatan_tindak_lanjut')) {
             $laporan->catatan_tindak_lanjut = $request->catatan_tindak_lanjut;
         }
-        // tim_penanggung_jawab & kendala disimpan terpisah dari catatan --
-        // SEBELUMNYA ketiganya digabung jadi satu string di
-        // catatan_tindak_lanjut dan tidak pernah bisa dibaca ulang untuk
-        // prefill form Tindak Lanjut.
         if ($request->has('tim_penanggung_jawab')) {
             $laporan->tim_penanggung_jawab = $request->tim_penanggung_jawab;
         }
@@ -221,13 +227,80 @@ class LaporanController extends Controller
             $laporan->kendala = $request->kendala;
         }
 
+        // Support for penyelesaian fields if status is Closed
+        if ($request->status_penanganan === 'Closed') {
+            if ($request->has('tgl_selesai')) $laporan->tgl_selesai = $request->tgl_selesai;
+            if ($request->has('durasi_penanganan')) $laporan->durasi_penanganan = $request->durasi_penanganan;
+            if ($request->has('alat_digunakan')) $laporan->alat_digunakan = $request->alat_digunakan;
+            if ($request->has('catatan_selesai')) $laporan->catatan_selesai = $request->catatan_selesai;
+            
+            // Note: Since this is often a PATCH/PUT, file uploads might be tricky if not sent as multipart/form-data.
+            // But we will handle it if present.
+            if ($request->hasFile('foto_selesai') || $request->has('foto_selesai')) {
+                $fotoUrls = [];
+                if ($request->hasFile('foto_selesai')) {
+                    $files = is_array($request->file('foto_selesai')) ? $request->file('foto_selesai') : [$request->file('foto_selesai')];
+                    foreach ($files as $file) {
+                        $path = $file->store('penanganan', 'public');
+                        $fotoUrls[] = asset('storage/' . $path);
+                    }
+                } elseif (is_array($request->foto_selesai)) {
+                    $fotoUrls = $request->foto_selesai;
+                }
+                if (!empty($fotoUrls)) {
+                    $laporan->foto_selesai = $fotoUrls;
+                }
+            }
+        }
+
         $laporan->save();
 
-        // Clear Cache Dashboard setelah update status
         Cache::forget('dashboard_summary_metrics');
 
         return response()->json([
             'message' => 'Status laporan berhasil diperbarui',
+            'data' => $laporan
+        ]);
+    }
+
+    /**
+     * Menyelesaikan laporan secara khusus dengan detail penanganan
+     */
+    public function selesai(Request $request, $id)
+    {
+        $laporan = Laporan::findOrFail($id);
+
+        $request->validate([
+            'tgl_selesai' => 'nullable|date',
+            'durasi_penanganan' => 'nullable|string',
+            'alat_digunakan' => 'nullable|string',
+            'catatan_selesai' => 'nullable|string',
+        ]);
+
+        $fotoUrls = [];
+        if ($request->hasFile('foto_selesai')) {
+            $files = is_array($request->file('foto_selesai')) ? $request->file('foto_selesai') : [$request->file('foto_selesai')];
+            foreach ($files as $file) {
+                $path = $file->store('penanganan', 'public');
+                $fotoUrls[] = asset('storage/' . $path);
+            }
+        } elseif (is_array($request->foto_selesai)) {
+            $fotoUrls = $request->foto_selesai;
+        }
+
+        $laporan->update([
+            'status_penanganan' => 'Closed',
+            'tgl_selesai' => $request->tgl_selesai ?? now(),
+            'durasi_penanganan' => $request->durasi_penanganan,
+            'alat_digunakan' => $request->alat_digunakan,
+            'catatan_selesai' => $request->catatan_selesai,
+            'foto_selesai' => !empty($fotoUrls) ? $fotoUrls : $laporan->foto_selesai,
+        ]);
+
+        Cache::forget('dashboard_summary_metrics');
+
+        return response()->json([
+            'message' => 'Laporan berhasil diselesaikan',
             'data' => $laporan
         ]);
     }
@@ -269,14 +342,42 @@ class LaporanController extends Controller
     /**
      * Metrik Ringkasan untuk Dashboard (Menggunakan Caching - Spesifikasi PDF Hal 12)
      */
-    public function summaryMetrics()
+    public function summaryMetrics(Request $request)
     {
+        $idPelapor = $request->query('id_pelapor');
+        $user = $request->user('sanctum'); // Gunakan guard sanctum agar tidak throw error jika unauthenticated di route public
+
+        // Jika id_pelapor tidak dikirim secara eksplisit, tapi user terautentikasi dan bukan Manajemen
+        if (!$idPelapor && $user && in_array($user->peran_user, ['Petani', 'Petugas Lapangan'])) {
+            $idPelapor = $user->id;
+        }
+
+        if ($idPelapor) {
+            // Metrics spesifik pengguna, tidak perlu global cache atau gunakan cache key unik per user
+            $metrics = Cache::remember("dashboard_summary_metrics_user_{$idPelapor}", 300, function () use ($idPelapor) {
+                $baseQuery = Laporan::where('id_pelapor', $idPelapor);
+                
+                return [
+                    'total_laporan' => (clone $baseQuery)->count(),
+                    'open' => (clone $baseQuery)->where('status_penanganan', 'Open')->count(),
+                    'on_progress' => (clone $baseQuery)->where('status_penanganan', 'On-Progress')->count(),
+                    'closed' => (clone $baseQuery)->where('status_penanganan', 'Closed')->count(),
+                    'by_jenis' => [
+                        'kebakaran' => (clone $baseQuery)->where('jenis_kejadian', 'Kebakaran tebu')->count(),
+                        'hama' => (clone $baseQuery)->where('jenis_kejadian', 'Serangan hama')->count(),
+                        'penyakit' => (clone $baseQuery)->where('jenis_kejadian', 'Penyakit tanaman')->count(),
+                        'banjir' => (clone $baseQuery)->where('jenis_kejadian', 'Banjir/genangan')->count(),
+                        'lainnya' => (clone $baseQuery)->where('jenis_kejadian', 'Kendala lainnya')->count(),
+                    ]
+                ];
+            });
+
+            return response()->json($metrics);
+        }
+
+        // Global metrics
         $metrics = Cache::remember('dashboard_summary_metrics', 300, function () {
             return [
-                // Pakai counter historis (laporan_counters), BUKAN
-                // Laporan::count() -- lihat komentar di migration
-                // laporan_counters kenapa ini penting untuk fitur
-                // "Hapus Semua Laporan".
                 'total_laporan' => DB::table('laporan_counters')->value('total_count') ?? Laporan::count(),
                 'open' => Laporan::where('status_penanganan', 'Open')->count(),
                 'on_progress' => Laporan::where('status_penanganan', 'On-Progress')->count(),

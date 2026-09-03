@@ -21,12 +21,18 @@ class SektorController extends Controller
             'nama_sektor' => 'required|string|max:255',
             'luas_ha' => 'nullable|numeric',
             'status' => 'nullable|string|max:50',
+            'latitude' => 'nullable|numeric',
+            'longitude' => 'nullable|numeric',
+            'radius' => 'nullable|numeric',
         ]);
 
         $sektor = Sektor::create([
             'nama_sektor' => $request->nama_sektor,
             'luas_ha' => $request->luas_ha,
             'status' => $request->status ?? 'Aktif',
+            'latitude' => $request->latitude,
+            'longitude' => $request->longitude,
+            'radius' => $request->radius ?? 200,
         ]);
 
         return response()->json(['message' => 'Sektor berhasil ditambahkan', 'data' => $sektor], 201);
@@ -40,6 +46,9 @@ class SektorController extends Controller
             'nama_sektor' => 'sometimes|required|string|max:255',
             'luas_ha' => 'nullable|numeric',
             'status' => 'nullable|string|max:50',
+            'latitude' => 'nullable|numeric',
+            'longitude' => 'nullable|numeric',
+            'radius' => 'nullable|numeric',
         ]);
 
         $sektor->update($request->all());

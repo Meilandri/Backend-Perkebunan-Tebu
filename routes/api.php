@@ -7,6 +7,7 @@ use App\Http\Controllers\Api\LaporanController;
 use App\Http\Controllers\Api\SektorController;
 use App\Http\Controllers\Api\KategoriController;
 use App\Http\Controllers\Api\TimPetugasController;
+use App\Http\Controllers\Api\RiwayatController;
 
 /*
 |--------------------------------------------------------------------------
@@ -23,10 +24,14 @@ Route::post('/guest', [AuthController::class, 'guestLogin']);
 Route::post('/laporan', [LaporanController::class, 'store']);
 Route::get('/laporan/map', [LaporanController::class, 'mapData']); // Bounding box map query
 Route::get('/laporan/summary', [LaporanController::class, 'summaryMetrics']); // Dashboard summary cache
+Route::get('/user/statistics', [LaporanController::class, 'summaryMetrics']); // Alias
 
 // Public Referensi (dibutuhkan Petani/Guest untuk mengisi dropdown form laporan)
 Route::get('/sektors', [SektorController::class, 'index']);
+Route::get('/sektor', [SektorController::class, 'index']); // Alias
 Route::get('/kategoris', [KategoriController::class, 'index']);
+Route::get('/kategori', [KategoriController::class, 'index']); // Alias
+Route::get('/riwayat', [RiwayatController::class, 'index']); // Public access to riwayat
 
 // Tim Petugas CRUD
 Route::apiResource('tim-petugas', TimPetugasController::class);
@@ -41,8 +46,14 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/laporan', [LaporanController::class, 'destroyAll'])->middleware('role:Manajemen');
     Route::get('/laporan/{id}', [LaporanController::class, 'show']);
     Route::patch('/laporan/{id}/status', [LaporanController::class, 'updateStatus'])->middleware('role:Manajemen');
+    Route::match(['put', 'patch'], '/laporan/{id}/selesai', [LaporanController::class, 'selesai']);
 
     // Manajemen Sektor & Kategori (index sudah publik di atas, sisanya hanya Manajemen)
     Route::apiResource('sektors', SektorController::class)->except(['show', 'index'])->middleware('role:Manajemen');
-    Route::apiResource('kategoris', KategoriController::class)->only(['store', 'destroy'])->middleware('role:Manajemen');
+    Route::apiResource('sektor', SektorController::class)->except(['show', 'index'])->middleware('role:Manajemen'); // Alias
+    Route::apiResource('kategoris', KategoriController::class)->only(['store', 'update', 'destroy'])->middleware('role:Manajemen');
+    Route::apiResource('kategori', KategoriController::class)->only(['store', 'update', 'destroy'])->middleware('role:Manajemen'); // Alias
+    
+    // Riwayat
+    Route::post('/riwayat', [RiwayatController::class, 'store']);
 });

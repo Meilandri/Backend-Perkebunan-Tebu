@@ -32,6 +32,11 @@ class Laporan extends Model
         'kendala',
         'status_penanganan',
         'waktu_lapor',
+        'tgl_selesai',
+        'durasi_penanganan',
+        'alat_digunakan',
+        'catatan_selesai',
+        'foto_selesai',
     ];
 
     protected $casts = [
@@ -41,6 +46,9 @@ class Laporan extends Model
         'area_dimension_1' => 'float',
         'area_dimension_2' => 'float',
         'waktu_lapor' => 'datetime',
+        'tgl_selesai' => 'datetime',
+        'foto_bukti' => 'array',
+        'foto_selesai' => 'array',
     ];
 
     /**
@@ -53,13 +61,24 @@ class Laporan extends Model
     protected static function booted()
     {
         static::created(function (Laporan $laporan) {
-            if ($laporan->kode_laporan) {
-                return;
+            if (!$laporan->kode_laporan) {
+                $waktu = $laporan->waktu_lapor ?: now();
+                $kode = $waktu->format('s-i-H-d-m-y') . '-' . str_pad($laporan->id_laporan, 3, '0', STR_PAD_LEFT);
+                $laporan->kode_laporan = $kode;
+                $laporan->saveQuietly();
             }
-            $waktu = $laporan->waktu_lapor ?: now();
-            $kode = $waktu->format('s-i-H-d-m-y') . '-' . str_pad($laporan->id_laporan, 3, '0', STR_PAD_LEFT);
-            $laporan->kode_laporan = $kode;
-            $laporan->saveQuietly();
+
+            // Catat log
+            RiwayatAktivitas::catat('Membuat Laporan', "Laporan baru dengan kode {$laporan->kode_laporan} dibuat.");
+        });
+
+        static::updated(function (Laporan $laporan) {
+            if ($laporan->isDirty('status_penanganan')) {
+                RiwayatAktivitas::catat(
+                    'Update Status Laporan',
+                    "Status laporan {$laporan->kode_laporan} diubah dari {$laporan->getOriginal('status_penanganan')} menjadi {$laporan->status_penanganan}."
+                );
+            }
         });
     }
 
@@ -69,5 +88,25 @@ class Laporan extends Model
     public function pelapor()
     {
         return $this->belongsTo(User::class, 'id_pelapor', 'id');
+    }
+
+    public function getFotoBuktiAttribute($value)
+    {
+        if (is_null($value)) return [];
+        $decoded = json_decode($value, true);
+        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+            return $decoded;
+        }
+        return [$value]; // wrap string in array for backward compatibility
+    }
+
+    public function getFotoSelesaiAttribute($value)
+    {
+        if (is_null($value)) return [];
+        $decoded = json_decode($value, true);
+        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+            return $decoded;
+        }
+        return [$value];
     }
 }
