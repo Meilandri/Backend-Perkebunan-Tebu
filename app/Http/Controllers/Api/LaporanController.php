@@ -181,6 +181,14 @@ class LaporanController extends Controller
 
         // Clear Cache Dashboard saat ada laporan baru
         Cache::forget('dashboard_summary_metrics');
+        // SEBELUMNYA cache PER-USER (dashboard_summary_metrics_user_{id})
+        // tidak pernah di-forget di sini -- cuma cache GLOBAL yang
+        // dibersihkan. Akibatnya summary milik petani/petugas yang
+        // login (dashboard mereka sendiri) tetap menampilkan angka lama
+        // sampai TTL 300 detik habis, walau laporan baru sudah masuk.
+        if ($laporan->id_pelapor) {
+            Cache::forget("dashboard_summary_metrics_user_{$laporan->id_pelapor}");
+        }
 
         return response()->json([
             'message' => 'Laporan berhasil dikirim!',
@@ -256,6 +264,13 @@ class LaporanController extends Controller
         $laporan->save();
 
         Cache::forget('dashboard_summary_metrics');
+        // Sama seperti di store() -- cache per-user milik pelapor laporan
+        // ini juga harus di-forget, supaya begitu status berubah (mis.
+        // ditutup oleh Manajemen), summary yang dilihat pelapornya sendiri
+        // langsung update juga.
+        if ($laporan->id_pelapor) {
+            Cache::forget("dashboard_summary_metrics_user_{$laporan->id_pelapor}");
+        }
 
         return response()->json([
             'message' => 'Status laporan berhasil diperbarui',
@@ -298,6 +313,11 @@ class LaporanController extends Controller
         ]);
 
         Cache::forget('dashboard_summary_metrics');
+        // Sama seperti di store()/updateStatus() -- cache per-user milik
+        // pelapor laporan ini juga harus di-forget.
+        if ($laporan->id_pelapor) {
+            Cache::forget("dashboard_summary_metrics_user_{$laporan->id_pelapor}");
+        }
 
         return response()->json([
             'message' => 'Laporan berhasil diselesaikan',
@@ -313,6 +333,11 @@ class LaporanController extends Controller
      */
     public function destroyAll(Request $request)
     {
+        // Kumpulkan dulu id_pelapor mana saja yang punya laporan, SEBELUM
+        // baris-barisnya dihapus -- dipakai di bawah untuk membersihkan
+        // cache summary per-user mereka juga (bukan cuma cache global).
+        $affectedPelaporIds = Laporan::whereNotNull('id_pelapor')->distinct()->pluck('id_pelapor');
+
         // Hapus juga file foto bukti yang tersimpan di storage supaya
         // tidak jadi sampah orphan setelah baris databasenya hilang.
         Laporan::whereNotNull('foto_bukti')->chunkById(200, function ($chunk) {
@@ -332,6 +357,9 @@ class LaporanController extends Controller
         // angka historis kumulatif, bukan jumlah baris yang sedang ada --
         // jadi harus tetap sama walau semua laporan aktif dihapus.
         Cache::forget('dashboard_summary_metrics');
+        foreach ($affectedPelaporIds as $uid) {
+            Cache::forget("dashboard_summary_metrics_user_{$uid}");
+        }
 
         return response()->json([
             'message' => "Berhasil menghapus {$total} laporan.",
