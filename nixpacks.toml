@@ -2,11 +2,8 @@ providers = ["php"]
 
 [phases.build]
 cmds = [
-    'composer install --no-dev --optimize-autoloader',
-    'php artisan config:cache',
-    'php artisan route:cache',
-    'php artisan view:cache'
+    'composer install --no-dev --optimize-autoloader'
 ]
 
 [start]
-cmd = 'php artisan serve --host=0.0.0.0 --port=$PORT'
+cmd = 'php artisan config:clear && php artisan migrate --force && php artisan route:cache && php artisan view:cache && php artisan serve --host=0.0.0.0 --port=$PORT'
