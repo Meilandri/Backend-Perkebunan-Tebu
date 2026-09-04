@@ -21,6 +21,18 @@ Laravel is a web application framework with expressive, elegant syntax. We belie
 
 Laravel is accessible, powerful, and provides tools required for large, robust applications.
 
+## Deploying on Railway
+
+This service is deployed on Railway using Railpack's PHP provider. By default, Railpack runs
+`php artisan migrate --force` automatically on every deploy startup, which will crash the app if
+the database isn't reachable yet or the connection credentials haven't been verified.
+
+To avoid blocking application startup on migrations, the `APP_SKIP_MIGRATIONS=true` environment
+variable is set (see `.env.example`), which tells Railpack to skip the automatic migration step.
+This lets the app boot and start accepting requests immediately. Once the database is confirmed
+reachable, run migrations manually (for example via `railway run php artisan migrate --force`, or
+as a pre-deploy command that first waits for the database and validates credentials).
+
 ## Learning Laravel
 
 Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
