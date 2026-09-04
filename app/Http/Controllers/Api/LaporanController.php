@@ -152,7 +152,16 @@ class LaporanController extends Controller
             }
         }
 
-        $user = $request->user();
+        // SEBELUMNYA di sini pakai $request->user() (guard default) --
+        // tapi route /laporan ini sengaja PUBLIK (tidak ada middleware
+        // auth:sanctum), jadi guard default tidak pernah membaca token
+        // Bearer yang dikirim FE. Akibatnya $user selalu null dan
+        // id_pelapor selalu tersimpan null, walau petani/petugas yang
+        // submit sebenarnya sedang login dengan token valid. Perbaikannya
+        // sama seperti pola yang sudah dipakai di summaryMetrics() di
+        // bawah: pakai guard 'sanctum' secara eksplisit, yang tetap bisa
+        // membaca Bearer token di route publik sekalipun.
+        $user = $request->user('sanctum');
 
         $laporan = Laporan::create([
             'id_pelapor' => $user ? $user->id : null,
