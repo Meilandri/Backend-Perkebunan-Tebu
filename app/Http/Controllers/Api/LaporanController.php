@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Laporan;
+use App\Http\Resources\LaporanResource;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
@@ -73,6 +74,10 @@ class LaporanController extends Controller
 
         $laporans = $query->orderBy('waktu_lapor', 'desc')->paginate($request->get('per_page', 15));
 
+        $laporans->through(function ($laporan) {
+            return new LaporanResource($laporan);
+        });
+
         return response()->json($laporans);
     }
 
@@ -89,7 +94,12 @@ class LaporanController extends Controller
             'max_lng' => 'nullable|numeric',
         ]);
 
-        $query = Laporan::select('id_laporan', 'kode_laporan', 'jenis_kejadian', 'wilayah', 'latitude', 'longitude', 'location_type', 'radius', 'radius_unit', 'area_type', 'area_dimension_1', 'area_dimension_2', 'status_penanganan', 'waktu_lapor', 'foto_bukti', 'keterangan_tambahan');
+        $query = Laporan::select(
+            'id_laporan', 'kode_laporan', 'jenis_kejadian', 'wilayah', 'latitude', 'longitude',
+            'location_type', 'radius', 'radius_unit', 'area_type', 'area_dimension_1', 'area_dimension_2',
+            'status_penanganan', 'waktu_lapor', 'foto_bukti', 'keterangan_tambahan',
+            'tim_penanggung_jawab', 'kendala', 'catatan_selesai', 'durasi_penanganan', 'alat_digunakan', 'tgl_selesai', 'foto_selesai'
+        );
 
         // Bounding Box Filter jika parameter viewport diberikan oleh Leaflet/React
         if ($request->filled(['min_lat', 'max_lat', 'min_lng', 'max_lng'])) {
@@ -211,7 +221,7 @@ class LaporanController extends Controller
     public function show($id)
     {
         $laporan = Laporan::with('pelapor')->findOrFail($id);
-        return response()->json($laporan);
+        return new LaporanResource($laporan);
     }
 
     /**
@@ -229,12 +239,17 @@ class LaporanController extends Controller
             'catatan_tindak_lanjut' => 'nullable|string',
             'tim_penanggung_jawab' => 'nullable|string|max:255',
             'kendala' => 'nullable|string|max:255',
+            'catatan_selesai' => 'nullable|string',
+            'durasi_penanganan' => 'nullable|string|max:255',
+            'alat_digunakan' => 'nullable|string',
+            'tgl_selesai' => 'nullable',
+            'foto_selesai' => 'nullable',
         ]);
 
         $laporan = Laporan::findOrFail($id);
         $laporan->status_penanganan = $request->status_penanganan;
 
-        if ($request->filled('catatan_tindak_lanjut')) {
+        if ($request->has('catatan_tindak_lanjut')) {
             $laporan->catatan_tindak_lanjut = $request->catatan_tindak_lanjut;
         }
         if ($request->has('tim_penanggung_jawab')) {
@@ -243,30 +258,48 @@ class LaporanController extends Controller
         if ($request->has('kendala')) {
             $laporan->kendala = $request->kendala;
         }
+        if ($request->has('catatan_selesai')) {
+            $laporan->catatan_selesai = $request->catatan_selesai;
+        }
+        if ($request->has('durasi_penanganan')) {
+            $laporan->durasi_penanganan = $request->durasi_penanganan;
+        }
+        if ($request->has('alat_digunakan')) {
+            $laporan->alat_digunakan = $request->alat_digunakan;
+        }
 
-        // Support for penyelesaian fields if status is Closed
-        if ($request->status_penanganan === 'Closed') {
-            if ($request->has('tgl_selesai')) $laporan->tgl_selesai = $request->tgl_selesai;
-            if ($request->has('durasi_penanganan')) $laporan->durasi_penanganan = $request->durasi_penanganan;
-            if ($request->has('alat_digunakan')) $laporan->alat_digunakan = $request->alat_digunakan;
-            if ($request->has('catatan_selesai')) $laporan->catatan_selesai = $request->catatan_selesai;
-            
-            // Note: Since this is often a PATCH/PUT, file uploads might be tricky if not sent as multipart/form-data.
-            // But we will handle it if present.
-            if ($request->hasFile('foto_selesai') || $request->has('foto_selesai')) {
-                $fotoUrls = [];
-                if ($request->hasFile('foto_selesai')) {
-                    $files = is_array($request->file('foto_selesai')) ? $request->file('foto_selesai') : [$request->file('foto_selesai')];
-                    foreach ($files as $file) {
-                        $path = $file->store('penanganan', 'public');
-                        $fotoUrls[] = asset('storage/' . $path);
-                    }
-                } elseif (is_array($request->foto_selesai)) {
-                    $fotoUrls = $request->foto_selesai;
+        if ($request->has('tgl_selesai') && !empty($request->tgl_selesai)) {
+            $laporan->tgl_selesai = $request->tgl_selesai;
+        } elseif ($request->status_penanganan === 'Closed' && !$laporan->tgl_selesai) {
+            $laporan->tgl_selesai = now();
+        }
+
+        // Handle foto_selesai (Base64 Data URL, uploaded file, or relative path string)
+        if ($request->hasFile('foto_selesai')) {
+            $file = $request->file('foto_selesai');
+            if (is_array($file)) {
+                $file = $file[0];
+            }
+            $path = $file->store('foto_selesai', 'public');
+            $laporan->foto_selesai = $path;
+        } elseif ($request->has('foto_selesai')) {
+            $fotoSelesai = $request->foto_selesai;
+            if (is_string($fotoSelesai) && preg_match('/^data:image\/([a-zA-Z0-9\+\-]+).*?;base64,(.+)$/s', $fotoSelesai, $matches)) {
+                $extension = strtolower(explode('+', $matches[1])[0]);
+                if ($extension === 'jpeg') {
+                    $extension = 'jpg';
                 }
-                if (!empty($fotoUrls)) {
-                    $laporan->foto_selesai = $fotoUrls;
+                $imageData = base64_decode(trim($matches[2]));
+                if ($imageData !== false) {
+                    $fileName = 'foto_selesai_' . time() . '_' . uniqid() . '.' . $extension;
+                    $relativePath = 'foto_selesai/' . $fileName;
+                    Storage::disk('public')->put($relativePath, $imageData);
+                    $laporan->foto_selesai = $relativePath;
                 }
+            } elseif (is_string($fotoSelesai)) {
+                $laporan->foto_selesai = $fotoSelesai;
+            } elseif (is_null($fotoSelesai)) {
+                $laporan->foto_selesai = null;
             }
         }
 
@@ -283,7 +316,7 @@ class LaporanController extends Controller
 
         return response()->json([
             'message' => 'Status laporan berhasil diperbarui',
-            'data' => $laporan
+            'data' => new LaporanResource($laporan->fresh(['pelapor']))
         ]);
     }
 
@@ -295,31 +328,57 @@ class LaporanController extends Controller
         $laporan = Laporan::findOrFail($id);
 
         $request->validate([
-            'tgl_selesai' => 'nullable|date',
+            'tgl_selesai' => 'nullable',
             'durasi_penanganan' => 'nullable|string',
             'alat_digunakan' => 'nullable|string',
             'catatan_selesai' => 'nullable|string',
+            'foto_selesai' => 'nullable',
         ]);
 
-        $fotoUrls = [];
-        if ($request->hasFile('foto_selesai')) {
-            $files = is_array($request->file('foto_selesai')) ? $request->file('foto_selesai') : [$request->file('foto_selesai')];
-            foreach ($files as $file) {
-                $path = $file->store('penanganan', 'public');
-                $fotoUrls[] = asset('storage/' . $path);
-            }
-        } elseif (is_array($request->foto_selesai)) {
-            $fotoUrls = $request->foto_selesai;
+        if ($request->has('catatan_selesai')) {
+            $laporan->catatan_selesai = $request->catatan_selesai;
+        }
+        if ($request->has('durasi_penanganan')) {
+            $laporan->durasi_penanganan = $request->durasi_penanganan;
+        }
+        if ($request->has('alat_digunakan')) {
+            $laporan->alat_digunakan = $request->alat_digunakan;
         }
 
-        $laporan->update([
-            'status_penanganan' => 'Closed',
-            'tgl_selesai' => $request->tgl_selesai ?? now(),
-            'durasi_penanganan' => $request->durasi_penanganan,
-            'alat_digunakan' => $request->alat_digunakan,
-            'catatan_selesai' => $request->catatan_selesai,
-            'foto_selesai' => !empty($fotoUrls) ? $fotoUrls : $laporan->foto_selesai,
-        ]);
+        $laporan->status_penanganan = 'Closed';
+        $laporan->tgl_selesai = ($request->has('tgl_selesai') && !empty($request->tgl_selesai))
+            ? $request->tgl_selesai
+            : ($laporan->tgl_selesai ?: now());
+
+        if ($request->hasFile('foto_selesai')) {
+            $file = $request->file('foto_selesai');
+            if (is_array($file)) {
+                $file = $file[0];
+            }
+            $path = $file->store('foto_selesai', 'public');
+            $laporan->foto_selesai = $path;
+        } elseif ($request->has('foto_selesai')) {
+            $fotoSelesai = $request->foto_selesai;
+            if (is_string($fotoSelesai) && preg_match('/^data:image\/([a-zA-Z0-9\+\-]+).*?;base64,(.+)$/s', $fotoSelesai, $matches)) {
+                $extension = strtolower(explode('+', $matches[1])[0]);
+                if ($extension === 'jpeg') {
+                    $extension = 'jpg';
+                }
+                $imageData = base64_decode(trim($matches[2]));
+                if ($imageData !== false) {
+                    $fileName = 'foto_selesai_' . time() . '_' . uniqid() . '.' . $extension;
+                    $relativePath = 'foto_selesai/' . $fileName;
+                    Storage::disk('public')->put($relativePath, $imageData);
+                    $laporan->foto_selesai = $relativePath;
+                }
+            } elseif (is_string($fotoSelesai)) {
+                $laporan->foto_selesai = $fotoSelesai;
+            } elseif (is_null($fotoSelesai)) {
+                $laporan->foto_selesai = null;
+            }
+        }
+
+        $laporan->save();
 
         Cache::forget('dashboard_summary_metrics');
         // Sama seperti di store()/updateStatus() -- cache per-user milik
@@ -330,7 +389,7 @@ class LaporanController extends Controller
 
         return response()->json([
             'message' => 'Laporan berhasil diselesaikan',
-            'data' => $laporan
+            'data' => new LaporanResource($laporan->fresh(['pelapor']))
         ]);
     }
 
@@ -354,6 +413,15 @@ class LaporanController extends Controller
                 $path = str_replace(asset('storage') . '/', '', $laporan->foto_bukti);
                 if ($path && $path !== $laporan->foto_bukti) {
                     Storage::disk('public')->delete($path);
+                }
+            }
+        });
+
+        // Hapus juga file foto bukti penyelesaian
+        Laporan::whereNotNull('foto_selesai')->chunkById(200, function ($chunk) {
+            foreach ($chunk as $laporan) {
+                if ($laporan->foto_selesai && Storage::disk('public')->exists($laporan->foto_selesai)) {
+                    Storage::disk('public')->delete($laporan->foto_selesai);
                 }
             }
         });

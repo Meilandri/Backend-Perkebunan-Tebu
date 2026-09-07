@@ -52,7 +52,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/laporan', [LaporanController::class, 'index']);
     Route::delete('/laporan', [LaporanController::class, 'destroyAll'])->middleware('role:Manajemen');
     Route::get('/laporan/{id}', [LaporanController::class, 'show']);
-    Route::patch('/laporan/{id}/status', [LaporanController::class, 'updateStatus'])->middleware('role:Manajemen');
+    Route::match(['put', 'patch'], '/laporan/{id}/status', [LaporanController::class, 'updateStatus'])->middleware('role:Manajemen');
     Route::match(['put', 'patch'], '/laporan/{id}/selesai', [LaporanController::class, 'selesai']);
 
     // Manajemen Sektor & Kategori (index sudah publik di atas, sisanya hanya Manajemen)

@@ -48,7 +48,6 @@ class Laporan extends Model
         'waktu_lapor' => 'datetime',
         'tgl_selesai' => 'datetime',
         'foto_bukti' => 'array',
-        'foto_selesai' => 'array',
     ];
 
     /**
@@ -102,11 +101,20 @@ class Laporan extends Model
 
     public function getFotoSelesaiAttribute($value)
     {
-        if (is_null($value)) return [];
-        $decoded = json_decode($value, true);
-        if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
-            return $decoded;
+        if (is_null($value) || $value === '') {
+            return null;
         }
-        return [$value];
+
+        if (str_starts_with(trim($value), '[') || str_starts_with(trim($value), '"')) {
+            $decoded = json_decode($value, true);
+            if (is_array($decoded)) {
+                return !empty($decoded) ? $decoded[0] : null;
+            }
+            if (is_string($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return $value;
     }
 }
